@@ -87,13 +87,17 @@ def budget_report(
     """How much context each layout buys out of the same memory budget."""
 
     rows = []
+    seen = set()
     for label, heads in (
         ("MHA", shape.n_heads),
         (shape.layout, shape.n_kv_heads),
         ("MQA", 1),
     ):
-        if any(row[0] == label for row in rows):
+        # Deduplicate on the head count, not the label - the same rule the other
+        # two reports use, so an unusual shape cannot make them disagree.
+        if heads in seen:
             continue
+        seen.add(heads)
         rows.append(
             [
                 label,
@@ -133,7 +137,9 @@ def bandwidth_report(
         step_bytes = decode_bytes_per_step(
             shape, context, active_param_bytes, batch, dtype, heads
         )
-        cache_share = (step_bytes - active_param_bytes) / step_bytes * 100.0
+        cache_share = (
+            (step_bytes - active_param_bytes) / step_bytes * 100.0 if step_bytes else 0.0
+        )
         rows.append(
             [
                 label,
